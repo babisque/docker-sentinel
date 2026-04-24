@@ -13,10 +13,31 @@ import (
 	"github.com/babisque/docker-sentinel/internal/analyzer"
 	"github.com/babisque/docker-sentinel/internal/docker"
 	"github.com/babisque/docker-sentinel/internal/store"
+	"github.com/babisque/docker-sentinel/pkg/models"
 )
 
 func main() {
 	fmt.Println("Docker-Sentinel starting up...")
+
+	statsChan := make(chan models.StatsSnapshot, 100)
+	alertChan := make(chan analyzer.Alert, 100)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go func() {
+		for s := range statsChan {
+			if s.CPUPercentage > 80.0 {
+				log.Printf("[%s] High CPU usage detected in %s: %.2f%%", s.Timestamp.Format(time.RFC3339), s.ContainerName, s.CPUPercentage)
+			}
+		}
+	}()
+
+	go func() {
+		for alert := range alertChan {
+			fmt.Printf("[%s] ALERT: %s - %s\n", alert.Timestamp.Format(time.RFC3339), alert.Level, alert.Message)
+		}
+	}()
 
 	cli, err := docker.NewClient()
 	if err != nil {
@@ -25,17 +46,6 @@ func main() {
 	defer cli.Close()
 
 	hStore := store.NewHistoryStore()
-
-	alertChan := make(chan analyzer.Alert, 100)
-
-	go func() {
-		for alert := range alertChan {
-			fmt.Printf("[%s] ALERT: %s - %s\n", alert.Timestamp.Format(time.RFC3339), alert.Level, alert.Message)
-		}
-	}()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
@@ -51,6 +61,7 @@ func main() {
 			switch msg.Action {
 			case "start":
 				log.Printf("Container started: %s (%s)", containerName, image)
+				go docker.StreamStats(ctx, cli, msg.ID, containerName, statsChan)
 
 				go func(id, name, img string) {
 					stream, err := docker.GetContainerLogs(ctx, cli, id)
@@ -90,12 +101,11 @@ func main() {
 
 		case <-stop:
 			log.Println("Shutting down Docker-Sentinel...")
+			cancel()
 
 			err := hStore.ExportJSON("history.json")
 			if err != nil {
 				log.Printf("Error exporting history: %v", err)
-			} else {
-				log.Println("History exported to history.json")
 			}
 			return
 		}
