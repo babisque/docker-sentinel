@@ -12,6 +12,7 @@ import (
 
 	"github.com/babisque/docker-sentinel/internal/analyzer"
 	"github.com/babisque/docker-sentinel/internal/docker"
+	"github.com/babisque/docker-sentinel/internal/hub"
 	"github.com/babisque/docker-sentinel/internal/store"
 	"github.com/babisque/docker-sentinel/pkg/models"
 )
@@ -33,9 +34,21 @@ func main() {
 		}
 	}()
 
+	wsHub := hub.NewHub()
+	go wsHub.Run()
+
+	go func() {
+		for s := range statsChan {
+			if s.CPUPercentage > 80.0 {
+				log.Printf("Peak of CPU usage: %s", s.ContainerName)
+			}
+			wsHub.Broadcast <- s
+		}
+	}()
+
 	go func() {
 		for alert := range alertChan {
-			fmt.Printf("[%s] ALERT: %s - %s\n", alert.Timestamp.Format(time.RFC3339), alert.Level, alert.Message)
+			wsHub.Broadcast <- alert
 		}
 	}()
 
