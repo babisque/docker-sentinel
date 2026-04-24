@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SENTINEL // MISSION CONTROL</title>
+    <style>
+        :root {
+            --bg-color: #050505;
+            --panel-bg: #0d0d0d;
+            --text-green: #00ff41;
+            --alert-red: #ff0000;
+            --border: 2px solid #333;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-green);
+            font-family: 'Courier New', Courier, monospace;
+            margin: 0;
+            padding: 20px;
+            text-transform: uppercase;
+        }
+
+        header {
+            border-bottom: var(--border);
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        #dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .container-card {
+            background: var(--panel-bg);
+            border: var(--border);
+            padding: 15px;
+        }
+
+        .stat-line { margin: 5px 0; }
+        .bar-outer { background: #222; height: 10px; width: 100%; margin-top: 5px; }
+        .bar-inner { background: var(--text-green); height: 100%; width: 0%; transition: width 0.3s; }
+        
+        .pico { color: var(--alert-red); animation: blink 1s infinite; }
+        @keyframes blink { 50% { opacity: 0; } }
+    </style>
+</head>
+<body>
+    <header>
+        <span>SENTINEL v1.0 // SYSTEM MONITOR</span>
+        <span id="status">STATUS: OFFLINE</span>
+    </header>
+
+    <div id="dashboard">
+        </div>
+
+    <script>
+        const ws = new WebSocket(`ws://${window.location.host}/ws`);
+        const dashboard = document.getElementById('dashboard');
+
+        ws.onopen = () => document.getElementById('status').innerText = 'STATUS: ONLINE';
+        
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            
+            // Se for dado de Stats
+            if (data.cpu_percentage !== undefined) {
+                updateContainer(data);
+            }
+        };
+
+        function updateContainer(s) {
+            let card = document.getElementById(s.container_id);
+            if (!card) {
+                card = document.createElement('div');
+                card.id = s.container_id;
+                card.className = 'container-card';
+                dashboard.appendChild(card);
+            }
+
+            const cpuPico = s.cpu_percentage > 80 ? 'pico' : '';
+            
+            card.innerHTML = `
+                <div style="font-weight: bold; border-bottom: 1px solid #333; margin-bottom: 10px">
+                    ID: ${s.container_name.replace('/', '')}
+                </div>
+                <div class="stat-line ${cpuPico}">CPU: ${s.cpu_percentage.toFixed(2)}%</div>
+                <div class="bar-outer"><div class="bar-inner" style="width: ${s.cpu_percentage}%"></div></div>
+                
+                <div class="stat-line">RAM: ${s.memory_usage.toFixed(2)} MB</div>
+                <div class="bar-outer"><div class="bar-inner" style="width: ${s.mem_percent}%"></div></div>
+            `;
+        }
+    </script>
+</body>
+</html>

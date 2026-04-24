@@ -13,6 +13,7 @@ import (
 	"github.com/babisque/docker-sentinel/internal/analyzer"
 	"github.com/babisque/docker-sentinel/internal/docker"
 	"github.com/babisque/docker-sentinel/internal/hub"
+	"github.com/babisque/docker-sentinel/internal/server"
 	"github.com/babisque/docker-sentinel/internal/store"
 	"github.com/babisque/docker-sentinel/pkg/models"
 )
@@ -64,6 +65,8 @@ func main() {
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 
 	msgs, errs := docker.ListenEvents(ctx, cli)
+
+	go server.Start("localhost:8080", wsHub)
 
 	for {
 		select {
