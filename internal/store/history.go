@@ -1,6 +1,8 @@
 package store
 
 import (
+	"encoding/json"
+	"os"
 	"sync"
 	"time"
 )
@@ -34,4 +36,19 @@ func (s *HistoryStore) Get(id string) (*ContainerHistory, bool) {
 	defer s.mu.RUnlock()
 	history, exists := s.data[id]
 	return history, exists
+}
+
+func (s *HistoryStore) ExportJSON(filename string) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	enconder := json.NewEncoder(file)
+	enconder.SetIndent("", "  ")
+	return enconder.Encode(s.data)
 }

@@ -90,6 +90,13 @@ func main() {
 
 		case <-stop:
 			log.Println("Shutting down Docker-Sentinel...")
+
+			err := hStore.ExportJSON("history.json")
+			if err != nil {
+				log.Printf("Error exporting history: %v", err)
+			} else {
+				log.Println("History exported to history.json")
+			}
 			return
 		}
 	}
