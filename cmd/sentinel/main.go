@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/babisque/docker-sentinel/internal/analyzer"
 	"github.com/babisque/docker-sentinel/internal/docker"
 	"github.com/babisque/docker-sentinel/internal/store"
 )
@@ -24,6 +25,14 @@ func main() {
 	defer cli.Close()
 
 	hStore := store.NewHistoryStore()
+
+	alertChan := make(chan analyzer.Alert, 100)
+
+	go func() {
+		for alert := range alertChan {
+			fmt.Printf("[%s] ALERT: %s - %s\n", alert.Timestamp.Format(time.RFC3339), alert.Level, alert.Message)
+		}
+	}()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -46,6 +55,7 @@ func main() {
 				go func(id, name, img string) {
 					stream, err := docker.GetContainerLogs(ctx, cli, id)
 					if err != nil {
+						log.Printf("Error getting logs for %s: %v", name, err)
 						return
 					}
 					defer stream.Close()
@@ -56,6 +66,7 @@ func main() {
 					for scanner.Scan() {
 						line := scanner.Text()
 						capturedLogs = append(capturedLogs, line)
+						analyzer.Analyze(name, line, alertChan)
 					}
 
 					hStore.Save(id, &store.ContainerHistory{
