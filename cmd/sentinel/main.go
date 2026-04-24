@@ -27,21 +27,13 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	go func() {
-		for s := range statsChan {
-			if s.CPUPercentage > 80.0 {
-				log.Printf("[%s] High CPU usage detected in %s: %.2f%%", s.Timestamp.Format(time.RFC3339), s.ContainerName, s.CPUPercentage)
-			}
-		}
-	}()
-
 	wsHub := hub.NewHub()
 	go wsHub.Run()
 
 	go func() {
 		for s := range statsChan {
 			if s.CPUPercentage > 80.0 {
-				log.Printf("Peak of CPU usage: %s", s.ContainerName)
+				log.Printf("⚠️ PEAK DETECTED: %s at %.2f%%", s.ContainerName, s.CPUPercentage)
 			}
 			wsHub.Broadcast <- s
 		}
@@ -106,9 +98,15 @@ func main() {
 
 			case "die":
 				log.Printf("Container stopped: %s (%s)", containerName, image)
+				wsHub.Broadcast <- map[string]interface{}{
+					"type":         "lifecycle",
+					"action":       "die",
+					"container_id": msg.ID,
+				}
+
 				time.Sleep(500 * time.Millisecond)
 				if h, ok := hStore.Get(msg.ID); ok {
-					log.Printf("History for %s: %d log lines, stopped at %s", h.Name, len(h.Logs), h.StoppedAt.Format(time.RFC3339))
+					log.Printf("History for %s: %d log lines saved.", h.Name, len(h.Logs))
 				}
 			}
 		case err := <-errs:
