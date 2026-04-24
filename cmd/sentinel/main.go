@@ -1,19 +1,45 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"log"
 	"os"
-	"runtime"
+	"os/signal"
+	"syscall"
+
+	"github.com/babisque/docker-sentinel/internal/docker"
 )
 
 func main() {
-	fmt.Println("Docker-Sentinel starting the monitoring")
+	fmt.Println("Docker-Sentinel starting up...")
 
-	cpus := runtime.NumCPU()
-	goVersion := runtime.Version()
+	cli, err := docker.NewClient()
+	if err != nil {
+		log.Fatalf("Critic error: %v", err)
+	}
+	defer cli.Close()
 
-	fmt.Printf("Mechanism: %s | Detected CPUs: %d\n", goVersion, cpus)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	host, _ := os.Hostname()
-	fmt.Printf("Running on host: %s\n", host)
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+
+	msgs, errs := docker.ListenEvents(ctx, cli)
+
+	for {
+		select {
+		case msg := <-msgs:
+			fmt.Printf("Event: %s | Container: %s | Image: %s\n", msg.Action, msg.Actor.Attributes["name"], msg.From)
+
+		case err := <-errs:
+			log.Printf("Stream error: %v", err)
+			return
+
+		case <-stop:
+			fmt.Println("Shutting down gracefully...")
+			return
+		}
+	}
 }
