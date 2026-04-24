@@ -3,6 +3,7 @@ package docker
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/events"
@@ -20,4 +21,15 @@ func NewClient() (*client.Client, error) {
 
 func ListenEvents(ctx context.Context, cli *client.Client) (<-chan events.Message, <-chan error) {
 	return cli.Events(ctx, types.EventsOptions{})
+}
+
+func GetContainerLogs(ctx context.Context, cli *client.Client, containerId string) (io.ReadCloser, error) {
+	options := types.ContainerLogsOptions{
+		ShowStdout: true,
+		ShowStderr: true,
+		Follow:     true,
+		Timestamps: false,
+	}
+
+	return cli.ContainerLogs(ctx, containerId, options)
 }
