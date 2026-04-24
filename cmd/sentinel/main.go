@@ -33,7 +33,14 @@ func main() {
 	go func() {
 		for s := range statsChan {
 			if s.CPUPercentage > 80.0 {
-				log.Printf("⚠️ PEAK DETECTED: %s at %.2f%%", s.ContainerName, s.CPUPercentage)
+				log.Printf("PEAK DETECTED: %s at %.2f%%", s.ContainerName, s.CPUPercentage)
+
+				wsHub.Broadcast <- analyzer.Alert{
+					ContainerName: s.ContainerName,
+					Level:         "CRITICAL",
+					Message:       fmt.Sprintf("High CPU Usage: %.2f%%", s.CPUPercentage),
+					Timestamp:     time.Now(),
+				}
 			}
 			wsHub.Broadcast <- s
 		}
