@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/babisque/docker-sentinel/internal/hub"
+	"github.com/docker/docker/client"
 	"github.com/gorilla/websocket"
 )
 
@@ -12,7 +13,7 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
-func Start(address string, wsHub *hub.Hub) {
+func Start(address string, wsHub *hub.Hub, cli *client.Client) {
 	http.Handle("/", http.FileServer(http.Dir("./web")))
 
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
@@ -22,7 +23,7 @@ func Start(address string, wsHub *hub.Hub) {
 			return
 		}
 
-		wsHub.Register(conn)
+		wsHub.Register(conn, cli)
 	})
 
 	log.Printf("Server starting on %s", address)

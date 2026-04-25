@@ -66,7 +66,7 @@ func main() {
 
 	msgs, errs := docker.ListenEvents(ctx, cli)
 
-	go server.Start("localhost:8080", wsHub)
+	go server.Start("localhost:8080", wsHub, cli)
 
 	containers, err := cli.ContainerList(ctx, types.ContainerListOptions{})
 	if err != nil {

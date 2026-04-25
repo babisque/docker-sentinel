@@ -155,8 +155,28 @@
                 <div class="bar-outer"><div class="bar-inner" style="width: ${s.cpu_percentage}%"></div></div>
                 
                 <div class="stat-line">RAM: ${s.memory_usage.toFixed(2)} MB</div>
-                <div class="bar-outer"><div class="bar-inner" style="width: ${s.mem_percent}%"></div></div>
+                <div class="bar-outer"><div class="bar-inner" style="width: ${s.memory_percentage}%"></div></div>
+
+                <div style="margin-top: 15px; display: flex; gap: 10px;">
+                    <button onclick="sendCommand('stop', '${s.container_id}')" 
+                            style="background: #222; color: var(--alert-red); border: 1px solid var(--alert-red); cursor: pointer; font-size: 0.7em; padding: 5px; flex-grow: 1;">
+                        [ ABORT MISSION ]
+                    </button>
+                    <button onclick="sendCommand('restart', '${s.container_id}')" 
+                            style="background: #222; color: var(--text-green); border: 1px solid var(--text-green); cursor: pointer; font-size: 0.7em; padding: 5px; flex-grow: 1;">
+                        [ RE-LAUNCH ]
+                    </button>
+                </div>
             `;
+        }
+
+        function sendCommand(action, id) {
+            ws.send(JSON.stringify({ 
+                action: action, 
+                container_id: id 
+            }));
+            
+            appendLog(`COMMAND ISSUED: ${action.toUpperCase()} ON ${id.substring(0, 12)}...`);
         }
 
         function removeContainer(id) {

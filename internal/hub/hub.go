@@ -1,8 +1,11 @@
 package hub
 
 import (
+	"context"
 	"sync"
 
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/client"
 	"github.com/gorilla/websocket"
 )
 
@@ -35,8 +38,36 @@ func (h *Hub) Run() {
 	}
 }
 
-func (h *Hub) Register(conn *websocket.Conn) {
+func (h *Hub) Register(conn *websocket.Conn, cli *client.Client) {
 	h.mu.Lock()
-	defer h.mu.Unlock()
 	h.clients[conn] = true
+	h.mu.Unlock()
+
+	go func() {
+		defer func() {
+			conn.Close()
+			h.mu.Lock()
+			delete(h.clients, conn)
+			h.mu.Unlock()
+		}()
+
+		for {
+			var cmd map[string]string
+			if err := conn.ReadJSON(&cmd); err != nil {
+				break
+			}
+
+			if action, ok := cmd["action"]; ok {
+				id := cmd["container_id"]
+				ctx := context.Background()
+
+				switch action {
+				case "stop":
+					cli.ContainerStop(ctx, id, container.StopOptions{})
+				case "restart":
+					cli.ContainerRestart(ctx, id, container.StopOptions{})
+				}
+			}
+		}
+	}()
 }
