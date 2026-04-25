@@ -16,6 +16,7 @@ import (
 	"github.com/babisque/docker-sentinel/internal/server"
 	"github.com/babisque/docker-sentinel/internal/store"
 	"github.com/babisque/docker-sentinel/pkg/models"
+	"github.com/docker/docker/api/types"
 )
 
 func main() {
@@ -66,6 +67,29 @@ func main() {
 	msgs, errs := docker.ListenEvents(ctx, cli)
 
 	go server.Start("localhost:8080", wsHub)
+
+	containers, err := cli.ContainerList(ctx, types.ContainerListOptions{})
+	if err != nil {
+		log.Printf("Error listing containers: %v", err)
+	}
+
+	for _, c := range containers {
+		name := "unknown"
+		if len(c.Names) > 0 {
+			name = c.Names[0]
+		}
+
+		log.Printf("Syncing existing container: %s", name)
+		go docker.StreamStats(ctx, cli, c.ID, name, statsChan)
+
+		go func(id, n string) {
+			stram, err := docker.GetContainerLogs(ctx, cli, id)
+			if err != nil {
+				return
+			}
+			defer stram.Close()
+		}(c.ID, name)
+	}
 
 	for {
 		select {
