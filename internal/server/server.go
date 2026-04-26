@@ -23,7 +23,7 @@ func Start(address string, wsHub *hub.Hub, cli *client.Client) {
 			return
 		}
 
-		wsHub.Register(conn, cli)
+		wsHub.Register(conn)
 	})
 
 	log.Printf("Server starting on %s", address)

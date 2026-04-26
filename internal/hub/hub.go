@@ -1,35 +1,31 @@
 package hub
 
 import (
-	"context"
 	"sync"
 
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/client"
 	"github.com/gorilla/websocket"
 )
 
 type Hub struct {
-	clients map[*websocket.Conn]bool
-	mu      sync.Mutex
-
+	clients   map[*websocket.Conn]bool
+	mu        sync.Mutex
 	Broadcast chan interface{}
+	OnCommand func(action, containerID string)
 }
 
-func NewHub() *Hub {
+func NewHub(commandHandler func(string, string)) *Hub {
 	return &Hub{
 		clients:   make(map[*websocket.Conn]bool),
 		Broadcast: make(chan interface{}, 100),
+		OnCommand: commandHandler,
 	}
 }
 
 func (h *Hub) Run() {
-	for {
-		msg := <-h.Broadcast
+	for msg := range h.Broadcast {
 		h.mu.Lock()
 		for client := range h.clients {
-			err := client.WriteJSON(msg)
-			if err != nil {
+			if err := client.WriteJSON(msg); err != nil {
 				client.Close()
 				delete(h.clients, client)
 			}
@@ -38,7 +34,7 @@ func (h *Hub) Run() {
 	}
 }
 
-func (h *Hub) Register(conn *websocket.Conn, cli *client.Client) {
+func (h *Hub) Register(conn *websocket.Conn) {
 	h.mu.Lock()
 	h.clients[conn] = true
 	h.mu.Unlock()
@@ -52,21 +48,17 @@ func (h *Hub) Register(conn *websocket.Conn, cli *client.Client) {
 		}()
 
 		for {
-			var cmd map[string]string
+			var cmd struct {
+				Action      string `json:"action"`
+				ContainerID string `json:"container_id"`
+			}
+
 			if err := conn.ReadJSON(&cmd); err != nil {
 				break
 			}
 
-			if action, ok := cmd["action"]; ok {
-				id := cmd["container_id"]
-				ctx := context.Background()
-
-				switch action {
-				case "stop":
-					cli.ContainerStop(ctx, id, container.StopOptions{})
-				case "restart":
-					cli.ContainerRestart(ctx, id, container.StopOptions{})
-				}
+			if h.OnCommand != nil {
+				h.OnCommand(cmd.Action, cmd.ContainerID)
 			}
 		}
 	}()
