@@ -6,18 +6,22 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+type Commander interface {
+	Execute(action, containerID string)
+}
+
 type Hub struct {
 	clients   map[*websocket.Conn]bool
 	mu        sync.Mutex
 	Broadcast chan interface{}
-	OnCommand func(action, containerID string)
+	commander Commander
 }
 
-func NewHub(commandHandler func(string, string)) *Hub {
+func NewHub(c Commander) *Hub {
 	return &Hub{
 		clients:   make(map[*websocket.Conn]bool),
 		Broadcast: make(chan interface{}, 100),
-		OnCommand: commandHandler,
+		commander: c,
 	}
 }
 
@@ -57,8 +61,8 @@ func (h *Hub) Register(conn *websocket.Conn) {
 				break
 			}
 
-			if h.OnCommand != nil {
-				h.OnCommand(cmd.Action, cmd.ContainerID)
+			if h.commander != nil {
+				h.commander.Execute(cmd.Action, cmd.ContainerID)
 			}
 		}
 	}()
